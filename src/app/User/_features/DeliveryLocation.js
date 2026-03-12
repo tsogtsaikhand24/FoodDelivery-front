@@ -6,6 +6,11 @@ import { useState, useEffect } from "react";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast } from "react-toastify";
+import {
+  DELIVERY_LOCATION_UPDATED_EVENT,
+  readDeliveryLocation,
+  writeDeliveryLocation,
+} from "@/app/_utils/storage";
 
 export default function DeliverLocation() {
   const [open, setOpen] = useState(false);
@@ -19,18 +24,20 @@ export default function DeliverLocation() {
     console.log("Submitted:", values.DeliveryLocation);
     setLocation(values.DeliveryLocation);
 
-    localStorage.setItem("deliveryLocation", values.DeliveryLocation);
+    writeDeliveryLocation(values.DeliveryLocation);
     toast.success("successfully saved loaction");
 
     setOpen(false);
   };
 
   useEffect(() => {
-    const savedLocation = localStorage.getItem("deliveryLocation");
-    if (savedLocation) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLocation(savedLocation);
-    }
+    const syncLocation = () => setLocation(readDeliveryLocation());
+
+    syncLocation();
+    window.addEventListener(DELIVERY_LOCATION_UPDATED_EVENT, syncLocation);
+
+    return () =>
+      window.removeEventListener(DELIVERY_LOCATION_UPDATED_EVENT, syncLocation);
   }, []);
 
   return (
@@ -65,9 +72,7 @@ export default function DeliverLocation() {
           <Formik
             initialValues={{
               DeliveryLocation:
-                typeof window !== "undefined"
-                  ? localStorage.getItem("deliveryLocation") || ""
-                  : "",
+                typeof window !== "undefined" ? readDeliveryLocation() : "",
             }}
             validationSchema={deliverySchema}
             onSubmit={handleSubmit}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PlusIcon from "../_icons/plusIcon";
 import XIcon from "../_icons/XIcon";
 import QuantityMinusIcon from "../_icons/quantityMinusIcon";
@@ -8,6 +8,7 @@ import QuantityPlusIcon from "../_icons/quantityPlusIcon";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { CheckIcon } from "lucide-react";
+import { CART_UPDATED_EVENT, readCart, writeCart } from "@/app/_utils/storage";
 
 export default function UserFoodCard({
   foodName,
@@ -23,15 +24,21 @@ export default function UserFoodCard({
   const router = useRouter();
 
   const [inCart, setInCart] = useState(
-    !!(JSON.parse(localStorage.getItem("cart")) || []).find(
-      (item) => item._id === _id
-    )
+    !!readCart().find((item) => item._id === _id)
   );
 
+  useEffect(() => {
+    const syncInCart = () => setInCart(!!readCart().find((item) => item._id === _id));
+
+    window.addEventListener(CART_UPDATED_EVENT, syncInCart);
+
+    return () => window.removeEventListener(CART_UPDATED_EVENT, syncInCart);
+  }, [_id]);
+
   const removeFromCart = (_id) => {
-    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+    const cart = readCart();
     const updatedCart = cart.filter((item) => item._id !== _id);
-    localStorage.setItem("cart", JSON.stringify(updatedCart));
+    writeCart(updatedCart);
     toast.info("Хоол cart-аас хасагдлаа");
     setInCart(false);
     getData();
@@ -50,7 +57,7 @@ export default function UserFoodCard({
       setLoginRequired(true);
       return;
     }
-    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+    const cart = readCart();
     const exist = cart.find((item) => item._id === _id);
 
     if (exist) {
@@ -61,7 +68,7 @@ export default function UserFoodCard({
       setQuantity(1);
     }
 
-    localStorage.setItem("cart", JSON.stringify(cart));
+    writeCart(cart);
     setOpen(false);
     setInCart(true);
     getData();

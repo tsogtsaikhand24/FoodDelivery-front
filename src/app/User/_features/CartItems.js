@@ -5,17 +5,23 @@ import CartIcon from "@/app/admin/_icons/ShoppingCart";
 import CartFoodCard from "../_components/CartFoodCard";
 import axios from "axios";
 import HandingDishIconRed from "../_icons/handinDishIconRed";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import OrderHistory from "./OrderHistory";
 import { BACK_END_URL } from "@/app/_constants";
+import {
+  CART_UPDATED_EVENT,
+  clearDeliveryLocation,
+  getCartItemCount,
+  readCart,
+  readDeliveryLocation,
+  writeCart,
+  writeDeliveryLocation,
+} from "@/app/_utils/storage";
 
 const getDeliveryPrice = (amount) => (amount < 50000 ? 15000 : 7500);
 
 const updateLocal = (items) => {
-  localStorage.setItem(
-    "cart",
-    JSON.stringify(items.map((i) => ({ _id: i._id, quantity: i.quantity })))
-  );
+  writeCart(items.map((i) => ({ _id: i._id, quantity: i.quantity })));
 };
 
 export default function CartItems() {
@@ -23,8 +29,11 @@ export default function CartItems() {
   const [activeTab, setActiveTab] = useState("cart");
   const [cartItems, setCartItems] = useState([]);
   const [deliveryPrice, setDeliveryPrice] = useState(0);
-  const [deliveryLocation, setDeliveryLocation] = useState("");
+  const [deliveryLocation, setDeliveryLocation] = useState(() =>
+    readDeliveryLocation()
+  );
   const [isLoading, setIsLoading] = useState(false);
+  const [cartCount, setCartCount] = useState(() => getCartItemCount());
 
   const updateQuantity = (id, change) => {
     const updated = cartItems.map((item) =>
@@ -71,9 +80,11 @@ export default function CartItems() {
         }
       );
 
-      localStorage.removeItem("cart");
+      writeCart([]);
+      clearDeliveryLocation();
       setCartItems([]);
       setDeliveryPrice(0);
+      setDeliveryLocation("");
       toast.success("Order Successfully created!");
       setOpen(false);
       setIsLoading(false);
@@ -85,15 +96,21 @@ export default function CartItems() {
   };
 
   useEffect(() => {
+    const syncCartCount = () => setCartCount(getCartItemCount());
+
+    syncCartCount();
+    window.addEventListener(CART_UPDATED_EVENT, syncCartCount);
+
+    return () => window.removeEventListener(CART_UPDATED_EVENT, syncCartCount);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
 
-    const stored = JSON.parse(localStorage.getItem("cart")) || [];
-    const savedLocation = localStorage.getItem("deliveryLocation");
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (savedLocation) setDeliveryLocation(savedLocation);
+    const stored = readCart();
 
     if (stored.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCartItems([]);
       setDeliveryPrice(0);
       return;
@@ -133,13 +150,18 @@ export default function CartItems() {
   const totalAmount = itemsTotalAmount + deliveryPrice;
 
   return (
-    <div>
+    <div className="relative">
       <div
         onClick={() => setOpen(true)}
         className="cursor-pointer w-9 h-9 flex items-center justify-center bg-white rounded-full"
       >
         <CartIcon />
       </div>
+      {cartCount > 0 && (
+        <div className="absolute -top-2 -right-2 min-w-5 h-5 px-1 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+          {cartCount}
+        </div>
+      )}
 
       {open && (
         <div
@@ -228,10 +250,7 @@ export default function CartItems() {
                       value={deliveryLocation}
                       onChange={(e) => {
                         setDeliveryLocation(e.target.value);
-                        localStorage.setItem(
-                          "deliveryLocation",
-                          e.target.value
-                        );
+                        writeDeliveryLocation(e.target.value);
                       }}
                       className="min-h-20 w-full border rounded-20px"
                     />
